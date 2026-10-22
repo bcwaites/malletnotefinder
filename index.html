@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mallet Note Finder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f3ece1;
+    --bg-panel: #ece2d1;
+    --ink: #2b2420;
+    --ink-soft: #6b6153;
+    --bar-hi: #cf8f4c;
+    --bar-lo: #8a5527;
+    --bar-edge: #5c3a1c;
+    --resonator-hi: #a9b3bd;
+    --resonator-lo: #7a838d;
+    --resonator-edge: #4f565d;
+    --amber: #d9a441;
+    --correct: #3f7a63;
+    --correct-bg: #e1ede6;
+    --incorrect: #a63b41;
+    --incorrect-bg: #f3e0df;
+    --frame: #d8cbb4;
+    --shadow: rgba(43, 36, 32, 0.18);
+    font-family: "Inter", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 28px 16px 60px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 22px;
+  }
+
+  h1 {
+    font-family: "Fraunces", serif;
+    font-weight: 600;
+    font-size: 30px;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+
+  h1 span {
+    color: var(--bar-lo);
+  }
+
+  .tagline {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin: 2px 0 0;
+  }
+
+  /* ---- Settings panel ---- */
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--frame);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px 28px;
+    align-items: flex-end;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+
+  select, .seg-btn, .primary-btn {
+    font-family: "Inter", sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  select {
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--frame);
+    background: #fff;
+    color: var(--ink);
+  }
+
+  .seg {
+    display: flex;
+    border: 1px solid var(--frame);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .seg-btn {
+    padding: 7px 12px;
+    background: #fff;
+    border: none;
+    border-right: 1px solid var(--frame);
+    cursor: pointer;
+    color: var(--ink-soft);
+  }
+
+  .seg-btn:last-child { border-right: none; }
+
+  .seg-btn.active {
+    background: var(--bar-lo);
+    color: #fff;
+  }
+
+  .primary-btn {
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: none;
+    background: var(--ink);
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .primary-btn:hover { background: #443a32; }
+
+  /* ---- Stats ---- */
+  .stats {
+    display: flex;
+    gap: 22px;
+    margin-bottom: 18px;
+    font-family: "IBM Plex Mono", monospace;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .stat .num {
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .stat .lbl {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+  }
+
+  /* ---- Prompt ---- */
+  .prompt-zone {
+    text-align: center;
+    min-height: 64px;
+    margin-bottom: 10px;
+  }
+
+  .prompt-mode {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-soft);
+    margin-bottom: 4px;
+  }
+
+  .prompt-note {
+    font-family: "Fraunces", serif;
+    font-size: 44px;
+    font-weight: 600;
+  }
+
+  .feedback {
+    font-size: 15px;
+    font-weight: 600;
+    min-height: 22px;
+    margin-top: 4px;
+  }
+
+  .feedback.correct { color: var(--correct); }
+  .feedback.incorrect { color: var(--incorrect); }
+
+  /* ---- Instrument ---- */
+  .instrument-frame {
+    background: linear-gradient(180deg, #f8f3ea, var(--bg-panel));
+    border: 1px solid var(--frame);
+    border-radius: 16px;
+    padding: 18px 10px 26px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+  }
+
+  #keyboard-svg { display: block; margin: 0 auto; }
+
+  .bar {
+    cursor: pointer;
+    transition: filter 0.12s ease;
+  }
+  .bar:hover { filter: brightness(1.08); }
+
+  .bar.target-glow rect.bar-body {
+    stroke: #ffffff;
+    stroke-width: 4px;
+    filter: drop-shadow(0 0 5px rgba(255,255,255,0.95)) drop-shadow(0 0 10px rgba(255,255,255,0.6));
+  }
+
+  .bar.correct-flash rect.bar-body { fill: var(--correct) !important; stroke: var(--correct) !important; }
+  .bar.incorrect-flash rect.bar-body { fill: var(--incorrect) !important; stroke: var(--incorrect) !important; }
+
+  /* ---- Answer input ---- */
+  .answer-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .letters, .modifiers {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .note-btn {
+    width: 46px;
+    height: 46px;
+    border-radius: 10px;
+    border: 1px solid var(--frame);
+    background: #fff;
+    font-family: "Fraunces", serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .note-btn:hover { border-color: var(--bar-lo); }
+
+  .note-btn.selected {
+    background: var(--bar-lo);
+    color: #fff;
+    border-color: var(--bar-lo);
+  }
+
+  .modifiers .note-btn { width: auto; padding: 0 14px; font-size: 16px; }
+
+  .submit-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--ink-soft);
+    text-align: center;
+    max-width: 480px;
+  }
+
+  footer {
+    text-align: center;
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 30px;
+  }
+
+  @media (max-width: 520px) {
+    .prompt-note { font-size: 34px; }
+    .panel { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>Mallet Note <span>Finder</span></h1>
+      <p class="tagline">Note identification drills for the marimba keyboard</p>
+    </div>
+  </header>
+
+  <div class="panel">
+    <div class="field">
+      <label for="lowNote">Low note</label>
+      <select id="lowNote"></select>
+    </div>
+    <div class="field">
+      <label for="highNote">High note</label>
+      <select id="highNote"></select>
+    </div>
+    <div class="field">
+      <label>Mode</label>
+      <div class="seg" id="modeSeg">
+        <button class="seg-btn active" data-mode="name">Name the note</button>
+        <button class="seg-btn" data-mode="find">Find the note</button>
+        <button class="seg-btn" data-mode="mixed">Mixed</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Accidentals</label>
+      <div class="seg" id="spellingSeg">
+        <button class="seg-btn active" data-spelling="sharp">♯ Sharps</button>
+        <button class="seg-btn" data-spelling="flat">♭ Flats</button>
+      </div>
+    </div>
+    <div class="field">
+      <button class="primary-btn" id="restartBtn">Restart</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="num" id="statScore">0</div><div class="lbl">Correct</div></div>
+    <div class="stat"><div class="num" id="statTotal">0</div><div class="lbl">Attempted</div></div>
+    <div class="stat"><div class="num" id="statStreak">0</div><div class="lbl">Streak</div></div>
+  </div>
+
+  <div class="prompt-zone">
+    <div class="prompt-mode" id="promptMode">Which note is highlighted?</div>
+    <div class="prompt-note" id="promptNote"></div>
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <div class="instrument-frame">
+    <svg id="keyboard-svg"></svg>
+  </div>
+
+  <div class="answer-zone" id="answerZone">
+    <div class="letters" id="letterButtons"></div>
+    <div class="modifiers" id="modifierButtons">
+      <button class="note-btn" data-mod="-1">♭</button>
+      <button class="note-btn selected" data-mod="0">♮</button>
+      <button class="note-btn" data-mod="1">♯</button>
+    </div>
+    <div class="modifiers" id="octaveButtons"></div>
+    <div class="submit-row">
+      <button class="primary-btn" id="playBtn">▸ Play note</button>
+      <button class="primary-btn" id="submitBtn">Submit</button>
+    </div>
+    <p class="hint" id="hintText"></p>
+  </div>
+
+  <footer>Marimba Warehouse — mallet note trainer</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- Note utilities ---------- */
+  const SHARP_NAMES = {0:'C',1:'C#',2:'D',3:'D#',4:'E',5:'F',6:'F#',7:'G',8:'G#',9:'A',10:'A#',11:'B'};
+  const FLAT_NAMES  = {0:'C',1:'Db',2:'D',3:'Eb',4:'E',5:'F',6:'Gb',7:'G',8:'Ab',9:'A',10:'Bb',11:'B'};
+  const LETTER_MAP  = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+  const NATURAL_PCS = [0,2,4,5,7,9,11];
+
+  function pc(midi){ return ((midi % 12) + 12) % 12; }
+  function isNatural(midi){ return NATURAL_PCS.includes(pc(midi)); }
+  function octaveOf(midi){ return Math.floor(midi/12) - 1; }
+  function midiFromNatural(letter, octave){ return (octave+1)*12 + LETTER_MAP[letter]; }
+  function noteLabel(midi, useFlats){
+    const letter = (useFlats ? FLAT_NAMES : SHARP_NAMES)[pc(midi)];
+    return letter + octaveOf(midi);
+  }
+  function freqOf(midi){ return 440 * Math.pow(2, (midi-69)/12); }
+
+  const RANGE_LOW = midiFromNatural('A',2);
+  const RANGE_HIGH = midiFromNatural('C',7);
+
+  const naturalOptions = [];
+  for (let m = RANGE_LOW; m <= RANGE_HIGH; m++) if (isNatural(m)) naturalOptions.push(m);
+
+  /* ---------- State ---------- */
+  const state = {
+    lowMidi: midiFromNatural('F',4),
+    highMidi: midiFromNatural('E',5),
+    mode: 'name',        // name | find | mixed
+    spelling: 'sharp',    // sharp | flat
+    bars: [],             // {midi, natural, x, width, height}
+    target: null,
+    activeMode: 'name',   // resolved per-question when mixed
+    selectedLetter: null,
+    selectedMod: 0,
+    selectedOctave: null,
+    score: 0,
+    total: 0,
+    streak: 0,
+    locked: false
+  };
+
+  /* ---------- DOM refs ---------- */
+  const lowSel = document.getElementById('lowNote');
+  const highSel = document.getElementById('highNote');
+  const modeSeg = document.getElementById('modeSeg');
+  const spellingSeg = document.getElementById('spellingSeg');
+  const restartBtn = document.getElementById('restartBtn');
+  const svg = document.getElementById('keyboard-svg');
+  const promptMode = document.getElementById('promptMode');
+  const promptNote = document.getElementById('promptNote');
+  const feedbackEl = document.getElementById('feedback');
+  const answerZone = document.getElementById('answerZone');
+  const letterButtons = document.getElementById('letterButtons');
+  const modifierButtons = document.getElementById('modifierButtons');
+  const octaveButtons = document.getElementById('octaveButtons');
+  const submitBtn = document.getElementById('submitBtn');
+  const playBtn = document.getElementById('playBtn');
+  const hintText = document.getElementById('hintText');
+  const statScore = document.getElementById('statScore');
+  const statTotal = document.getElementById('statTotal');
+  const statStreak = document.getElementById('statStreak');
+
+  /* ---------- Populate range selects ---------- */
+  function fillRangeSelects(){
+    lowSel.innerHTML = '';
+    highSel.innerHTML = '';
+    naturalOptions.forEach(m => {
+      const label = noteLabel(m, false);
+      const o1 = document.createElement('option'); o1.value = m; o1.textContent = label;
+      const o2 = document.createElement('option'); o2.value = m; o2.textContent = label;
+      lowSel.appendChild(o1);
+      highSel.appendChild(o2);
+    });
+    lowSel.value = state.lowMidi;
+    highSel.value = state.highMidi;
+  }
+  fillRangeSelects();
+
+  /* ---------- Letter buttons ---------- */
+  ['A','B','C','D','E','F','G'].forEach(letter => {
+    const btn = document.createElement('button');
+    btn.className = 'note-btn';
+    btn.textContent = letter;
+    btn.dataset.letter = letter;
+    btn.addEventListener('click', () => {
+      state.selectedLetter = letter;
+      [...letterButtons.children].forEach(b => b.classList.toggle('selected', b === btn));
+    });
+    letterButtons.appendChild(btn);
+  });
+
+  modifierButtons.addEventListener('click', (e) => {
+    const btn = e.target.closest('.note-btn');
+    if (!btn) return;
+    state.selectedMod = parseInt(btn.dataset.mod, 10);
+    [...modifierButtons.children].forEach(b => b.classList.toggle('selected', b === btn));
+  });
+
+  function buildOctaveButtons(){
+    const octaves = new Set();
+    for (let m = state.lowMidi; m <= state.highMidi; m++) octaves.add(octaveOf(m));
+    octaveButtons.innerHTML = '';
+    if (octaves.size <= 1){
+      // Only one octave in range — nothing to choose, auto-select it.
+      state.selectedOctave = [...octaves][0];
+      return;
+    }
+    [...octaves].sort((a,b)=>a-b).forEach(oct => {
+      const btn = document.createElement('button');
+      btn.className = 'note-btn';
+      btn.textContent = oct;
+      btn.dataset.octave = oct;
+      btn.addEventListener('click', () => {
+        state.selectedOctave = oct;
+        [...octaveButtons.children].forEach(b => b.classList.toggle('selected', b === btn));
+      });
+      octaveButtons.appendChild(btn);
+    });
+  }
+
+  /* ---------- Audio (percussive mallet tone) ---------- */
+  let audioCtx = null;
+  function ctx(){
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+  function playTone(midi){
+    const ac = ctx();
+    const now = ac.currentTime;
+    const freq = freqOf(midi);
+    const master = ac.createGain();
+    master.gain.setValueAtTime(0.001, now);
+    master.gain.linearRampToValueAtTime(0.5, now + 0.006);
+    master.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+    master.connect(ac.destination);
+
+    const partials = [1, 3.9, 9.6]; // approximate marimba-like partial ratios
+    const gains = [1, 0.28, 0.12];
+    partials.forEach((ratio, i) => {
+      const osc = ac.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq * ratio;
+      const g = ac.createGain();
+      g.gain.value = gains[i];
+      osc.connect(g);
+      g.connect(master);
+      osc.start(now);
+      osc.stop(now + 1.7);
+    });
+  }
+
+  /* ---------- Build instrument SVG ---------- */
+  function buildBars(){
+    const bars = [];
+    const naturals = [];
+    for (let m = state.lowMidi; m <= state.highMidi; m++){
+      if (isNatural(m)) naturals.push(m);
+    }
+    const SLOT = 30;
+    const marginX = 24;
+    const width = marginX*2 + SLOT * naturals.length;
+    const NATURAL_W = 24, NATURAL_H = 130;
+    const ACCIDENTAL_W = 22, ACCIDENTAL_H = 75;
+
+    const naturalX = {};
+    naturals.forEach((m, i) => { naturalX[m] = marginX + i*SLOT + SLOT/2; });
+
+    naturals.forEach(m => {
+      bars.push({ midi:m, natural:true, x:naturalX[m], w:NATURAL_W, h:NATURAL_H });
+    });
+
+    for (let m = state.lowMidi; m <= state.highMidi; m++){
+      if (isNatural(m)) continue;
+      let below = m-1; while(!isNatural(below)) below--;
+      let above = m+1; while(!isNatural(above)) above++;
+      const xBelow = naturalX[below] !== undefined ? naturalX[below] : marginX;
+      const xAbove = naturalX[above] !== undefined ? naturalX[above] : width - marginX;
+      const x = (xBelow + xAbove) / 2;
+      bars.push({ midi:m, natural:false, x, w:ACCIDENTAL_W, h:ACCIDENTAL_H });
+    }
+
+    state.bars = bars;
+    state.svgWidth = width;
+    renderSVG();
+  }
+
+  function renderSVG(){
+    const width = state.svgWidth;
+    const height = 230;
+    const naturalBaseline = 215;
+    const NATURAL_H = 130;
+    const naturalTop = naturalBaseline - NATURAL_H;
+    const accidentalBaseline = naturalTop + 6; // accidentals float above the naturals, slight overlap at the seam
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.setAttribute('width', Math.min(width, 860));
+    svg.setAttribute('height', height * Math.min(width,860)/width);
+
+    let defs = `
+      <defs>
+        <linearGradient id="gradBar" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--bar-hi)"/>
+          <stop offset="100%" stop-color="var(--bar-lo)"/>
+        </linearGradient>
+        <filter id="glowWhite" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="4" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>`;
+
+    const barsNatural = state.bars.filter(b => b.natural).map(b => barMarkup(b, naturalBaseline)).join('');
+    const barsAccidental = state.bars.filter(b => !b.natural).map(b => barMarkup(b, accidentalBaseline)).join('');
+
+    svg.innerHTML = defs + barsNatural + barsAccidental;
+
+    state.bars.forEach(b => {
+      const el = svg.querySelector(`[data-midi="${b.midi}"]`);
+      if (el) el.addEventListener('click', () => onBarClick(b.midi));
+    });
+  }
+
+  function barMarkup(b, baseline){
+    const y = baseline - b.h;
+    const edge = 'var(--bar-edge)';
+    return `<g class="bar" data-midi="${b.midi}">
+      <rect class="bar-body" x="${b.x-b.w/2}" y="${y}" width="${b.w}" height="${b.h}" rx="3"
+        fill="url(#gradBar)" stroke="${edge}" stroke-width="1.5"/>
+    </g>`;
+  }
+
+  function showTargetMarker(midi){
+    clearTargetMarker();
+    const rect = svg.querySelector(`[data-midi="${midi}"] rect.bar-body`);
+    if (!rect) return;
+    const x = parseFloat(rect.getAttribute('x')) + parseFloat(rect.getAttribute('width'))/2;
+    const yTop = parseFloat(rect.getAttribute('y'));
+    const marker = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    marker.setAttribute('points', `${x-8},${yTop-16} ${x+8},${yTop-16} ${x},${yTop-4}`);
+    marker.setAttribute('fill', '#ffffff');
+    marker.setAttribute('stroke', 'var(--ink)');
+    marker.setAttribute('stroke-width', '1');
+    marker.setAttribute('id', 'targetMarker');
+    marker.style.filter = 'drop-shadow(0 1px 2px rgba(0,0,0,0.4))';
+    svg.appendChild(marker);
+  }
+
+  function clearTargetMarker(){
+    const m = svg.querySelector('#targetMarker');
+    if (m) m.remove();
+  }
+
+  /* ---------- Question flow ---------- */
+  function resolveMode(){
+    if (state.mode === 'mixed') return Math.random() < 0.5 ? 'name' : 'find';
+    return state.mode;
+  }
+
+  function nextQuestion(){
+    state.locked = false;
+    feedbackEl.textContent = '';
+    feedbackEl.className = 'feedback';
+    svg.querySelectorAll('.bar').forEach(g => g.classList.remove('target-glow','correct-flash','incorrect-flash'));
+    clearTargetMarker();
+
+    const pool = state.bars.map(b => b.midi);
+    const target = pool[Math.floor(Math.random() * pool.length)];
+    state.target = target;
+    state.activeMode = resolveMode();
+    state.selectedLetter = null;
+    state.selectedMod = 0;
+    [...letterButtons.children].forEach(b => b.classList.remove('selected'));
+    [...modifierButtons.children].forEach(b => b.classList.toggle('selected', b.dataset.mod === '0'));
+    const octaves = new Set();
+    for (let m = state.lowMidi; m <= state.highMidi; m++) octaves.add(octaveOf(m));
+    if (octaves.size > 1){
+      state.selectedOctave = null;
+      [...octaveButtons.children].forEach(b => b.classList.remove('selected'));
+    }
+
+    if (state.activeMode === 'name'){
+      promptMode.textContent = 'Which note is highlighted?';
+      promptNote.textContent = '';
+      const g = svg.querySelector(`[data-midi="${target}"]`);
+      if (g) g.classList.add('target-glow');
+      showTargetMarker(target);
+      answerZone.style.display = 'flex';
+      hintText.textContent = 'Pick the letter and accidental, then submit.';
+    } else {
+      promptMode.textContent = 'Find this note on the keyboard';
+      promptNote.textContent = noteLabel(target, state.spelling === 'flat');
+      answerZone.style.display = 'flex';
+      letterButtons.style.display = 'none';
+      modifierButtons.style.display = 'none';
+      octaveButtons.style.display = 'none';
+      submitBtn.style.display = 'none';
+      hintText.textContent = 'Click the correct bar.';
+    }
+
+    if (state.activeMode === 'name'){
+      letterButtons.style.display = 'flex';
+      modifierButtons.style.display = 'flex';
+      octaveButtons.style.display = octaveButtons.children.length ? 'flex' : 'none';
+      submitBtn.style.display = 'inline-block';
+    }
+  }
+
+  function onBarClick(midi){
+    if (state.activeMode === 'find'){
+      if (state.locked) return;
+      state.locked = true;
+      evaluate(midi === state.target, midi);
+    } else {
+      // in "name" mode, clicking a bar just previews its sound
+      playTone(midi);
+    }
+  }
+
+  function submitAnswer(){
+    if (state.activeMode !== 'name' || state.locked) return;
+    if (!state.selectedLetter){
+      feedbackEl.textContent = 'Choose a letter first.';
+      feedbackEl.className = 'feedback incorrect';
+      return;
+    }
+    if (state.selectedOctave === null){
+      feedbackEl.textContent = 'Choose an octave first.';
+      feedbackEl.className = 'feedback incorrect';
+      return;
+    }
+    state.locked = true;
+    const guessedMidi = midiFromNatural(state.selectedLetter, state.selectedOctave) + state.selectedMod;
+    const correct = (guessedMidi === state.target);
+    evaluate(correct, state.target);
+  }
+
+  function evaluate(correct, midi){
+    const g = svg.querySelector(`[data-midi="${midi}"]`);
+    if (g) g.classList.add(correct ? 'correct-flash' : 'incorrect-flash');
+    if (!correct){
+      const tg = svg.querySelector(`[data-midi="${state.target}"]`);
+      if (tg) tg.classList.add('target-glow');
+      showTargetMarker(state.target);
+    }
+    playTone(state.target);
+
+    state.total++;
+    if (correct){ state.score++; state.streak++; }
+    else { state.streak = 0; }
+    updateStats();
+
+    feedbackEl.textContent = correct
+      ? 'Correct!'
+      : `Not quite — that's ${noteLabel(state.target, state.spelling === 'flat')}.`;
+    feedbackEl.className = 'feedback ' + (correct ? 'correct' : 'incorrect');
+
+    setTimeout(nextQuestion, correct ? 700 : 1400);
+  }
+
+  function updateStats(){
+    statScore.textContent = state.score;
+    statTotal.textContent = state.total;
+    statStreak.textContent = state.streak;
+  }
+
+  /* ---------- Wire up controls ---------- */
+  lowSel.addEventListener('change', () => {
+    let lo = parseInt(lowSel.value, 10);
+    let hi = parseInt(highSel.value, 10);
+    if (lo >= hi){ hi = naturalOptions[Math.min(naturalOptions.indexOf(lo)+1, naturalOptions.length-1)]; highSel.value = hi; }
+    state.lowMidi = lo; state.highMidi = hi;
+    restart();
+  });
+  highSel.addEventListener('change', () => {
+    let lo = parseInt(lowSel.value, 10);
+    let hi = parseInt(highSel.value, 10);
+    if (hi <= lo){ lo = naturalOptions[Math.max(naturalOptions.indexOf(hi)-1, 0)]; lowSel.value = lo; }
+    state.lowMidi = lo; state.highMidi = hi;
+    restart();
+  });
+
+  modeSeg.addEventListener('click', (e) => {
+    const btn = e.target.closest('.seg-btn');
+    if (!btn) return;
+    state.mode = btn.dataset.mode;
+    [...modeSeg.children].forEach(b => b.classList.toggle('active', b === btn));
+    restart();
+  });
+
+  spellingSeg.addEventListener('click', (e) => {
+    const btn = e.target.closest('.seg-btn');
+    if (!btn) return;
+    state.spelling = btn.dataset.spelling;
+    [...spellingSeg.children].forEach(b => b.classList.toggle('active', b === btn));
+    if (state.activeMode === 'find') promptNote.textContent = noteLabel(state.target, state.spelling === 'flat');
+  });
+
+  restartBtn.addEventListener('click', restart);
+  submitBtn.addEventListener('click', submitAnswer);
+  playBtn.addEventListener('click', () => {
+    if (state.target !== null) playTone(state.target);
+  });
+
+  function restart(){
+    state.score = 0; state.total = 0; state.streak = 0;
+    updateStats();
+    buildBars();
+    buildOctaveButtons();
+    nextQuestion();
+  }
+
+  restart();
+})();
+</script>
+</body>
+</html>
